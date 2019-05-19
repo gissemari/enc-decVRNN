@@ -29,9 +29,6 @@ class Highway(nn.Module):
 
         :return: tensor with shape of [batch_size, size]
 
-        applies σ(x) ⨀ (f(G(x))) + (1 - σ(x)) ⨀ (Q(x)) transformation | G and Q is affine transformation,
-            f is non-linear transformation, σ(x) is affine transformation with sigmoid non-linearition
-            and ⨀ is element-wise multiplication
         """
 
         for layer in range(self.num_layers):

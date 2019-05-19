@@ -124,7 +124,7 @@ class BatchLoader:
             Original taken from https://github.com/yoonkim/CNN_sentence/blob/master/process_data
         '''
 
-        string = re.sub(r"[^가-힣A-Za-z0-9(),!?:;.\'\`]", " ", string)
+        string = re.sub(r"[^A-Za-z0-9(),!?:;.\'\`]", " ", string)
         string = re.sub(r"\'s", " \'s", string)
         string = re.sub(r"\'ve", " \'ve", string)
         string = re.sub(r"n\'t", " n\'t", string)
@@ -225,7 +225,7 @@ class BatchLoader:
 
         self.just_words = [word for line in self.word_tensor[0] for word in line]
 
-    def next_batch(self, batch_size, target_str):
+    def next_batch(self, batch_size, target_str, includeLengths=False):
         target = 0 if target_str == 'train' else 1
 
         indexes = np.array(np.random.randint(self.num_lines[target], size=batch_size))
@@ -266,8 +266,11 @@ class BatchLoader:
             to_add = max_input_seq_len - line_len
             encoder_character_input[i] = [self.encode_characters(self.pad_token)] * to_add + line[::-1]
 
-        return np.array(encoder_word_input), np.array(encoder_character_input), \
-               np.array(decoder_word_input), np.array(decoder_character_input), np.array(decoder_output)
+        if (includeLengths == True):
+            return np.array(encoder_word_input), np.array(decoder_word_input), input_seq_len
+        else:
+            return np.array(encoder_word_input), np.array(encoder_character_input), \
+                   np.array(decoder_word_input), np.array(decoder_character_input), np.array(decoder_output) #target
 
     def next_embedding_seq(self, seq_len):
         """

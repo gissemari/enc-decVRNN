@@ -18,7 +18,7 @@ if __name__ == '__main__':
                         help='batch size (default: 10)')
     parser.add_argument('--num-sample', type=int, default=5, metavar='NS',
                         help='num sample (default: 5)')
-    parser.add_argument('--use-cuda', type=bool, default=True, metavar='CUDA',
+    parser.add_argument('--use-cuda', type=bool, default=False, metavar='CUDA',
                         help='use cuda (default: True)')
     args = parser.parse_args()
 
@@ -51,7 +51,7 @@ if __name__ == '__main__':
         optimizer.step()
 
         if iteration % 500 == 0:
-            out = out.cpu().data.numpy()[0]
+            out = out.cpu().data.numpy()#[0]
             print('iteration = {}, loss = {}'.format(iteration, out))
 
     word_embeddings = neg_loss.input_embeddings()

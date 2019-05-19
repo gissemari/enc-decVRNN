@@ -4,10 +4,13 @@ import os
 import numpy as np
 import torch as t
 from torch.optim import Adam
+from torch.optim.lr_scheduler import StepLR, MultiStepLR
 
 from utils.batch_loader import BatchLoader
 from utils.parameters import Parameters
 from model.rvae import RVAE
+
+
 
 if __name__ == "__main__":
 
@@ -15,13 +18,15 @@ if __name__ == "__main__":
         raise FileNotFoundError("word embeddings file was't found")
 
     parser = argparse.ArgumentParser(description='RVAE')
-    parser.add_argument('--num-iterations', type=int, default=120000, metavar='NI',
+    parser.add_argument('--num-iterations', type=int, default=1000, metavar='NI', #120000
                         help='num iterations (default: 120000)')
-    parser.add_argument('--batch-size', type=int, default=32, metavar='BS',
+    parser.add_argument('--batch-size', type=int, default=64, metavar='BS',
                         help='batch size (default: 32)')
-    parser.add_argument('--use-cuda', type=bool, default=True, metavar='CUDA',
+    parser.add_argument('--use-VRNN', action='store_true',#default value True #type=bool, default=True, metavar='CUDA',
+                        help='use VRNN as decoder (default: False)')
+    parser.add_argument('--use-cuda', type=bool, default=False, metavar='CUDA',
                         help='use cuda (default: True)')
-    parser.add_argument('--learning-rate', type=float, default=0.00005, metavar='LR',
+    parser.add_argument('--learning-rate', type=float, default=0.0001, metavar='LR',
                         help='learning rate (default: 0.00005)')
     parser.add_argument('--dropout', type=float, default=0.3, metavar='DR',
                         help='dropout (default: 0.3)')
@@ -40,7 +45,7 @@ if __name__ == "__main__":
                             batch_loader.words_vocab_size,
                             batch_loader.chars_vocab_size)
 
-    rvae = RVAE(parameters)
+    rvae = RVAE(parameters, args.use_VRNN)
     if args.use_trained:
         rvae.load_state_dict(t.load('trained_RVAE'))
     if args.use_cuda:
@@ -54,52 +59,65 @@ if __name__ == "__main__":
     ce_result = []
     kld_result = []
 
+    scheduler = MultiStepLR(optimizer, milestones=[100], gamma=0.1)
     for iteration in range(args.num_iterations):
+        scheduler.step()
+        cross_entropy, kld, coef,loss = train_step(iteration, args.batch_size, args.use_cuda, args.dropout)
 
-        cross_entropy, kld, coef = train_step(iteration, args.batch_size, args.use_cuda, args.dropout)
-
+        '''
         if iteration % 5 == 0:
             print('\n')
             print('------------TRAIN-------------')
-            print('----------ITERATION-----------')
-            print(iteration)
-            print('--------CROSS-ENTROPY---------')
-            print(cross_entropy.data.cpu().numpy()[0])
-            print('-------------KLD--------------')
-            print(kld.data.cpu().numpy()[0])
-            print('-----------KLD-coef-----------')
-            print(coef)
+            print('Iteration,cross_entropy,kld,coef')
+            print(iteration,cross_entropy.data.cpu().numpy(),kld.data.cpu().numpy(),coef)
             print('------------------------------')
-
+        '''
+        print('Train-it: {}, loss: {:.4f}, cross_entropy: {:.4f}, KL: {:.4f}, coef {:8f}'.format(iteration, loss, cross_entropy/args.batch_size, kld/args.batch_size,coef))
+        '''
         if iteration % 10 == 0:
-            cross_entropy, kld = validate(args.batch_size, args.use_cuda)
+            instance = 5
+            cross_entropyVal, kldVal, softmax, lossVal , inputEnco= validate(iteration,args.batch_size, args.use_cuda, instance)
 
-            cross_entropy = cross_entropy.data.cpu().numpy()[0]
-            kld = kld.data.cpu().numpy()[0]
+            cross_entropyVal = cross_entropyVal.data.cpu().numpy()#[0]
+            kldVal = kldVal.data.cpu().numpy()#[0]
+            softmax = softmax.data.cpu().numpy()
 
+            resultInput = ''
+            for idWord in inputEnco:
+                word = batch_loader.idx_to_word[idWord]
+                #word2= batch_loader.sample_word_from_distribution(softmax.data.cpu().numpy()[-1])
+                resultInput += ' ' + word
+
+            ids = np.argmax(softmax, axis=1)
+            # added by Gissella to see the validation words generated
+            #lenSize = len(softmax)/args.batch_size
+            ids = np.reshape(ids,[args.batch_size, -1])
+
+            result = ''
+            for idWord in ids[instance]:
+                word = batch_loader.idx_to_word[idWord]
+                #word2= batch_loader.sample_word_from_distribution(softmax.data.cpu().numpy()[-1])
+                result += ' ' + word
+                #result2 += ' ' + word2
+            print("------- VALIDATION EXAMPLE ---------")
+            print("Real: ",resultInput)
+            print("Vali: ", result)
             print('\n')
-            print('------------VALID-------------')
-            print('--------CROSS-ENTROPY---------')
-            print(cross_entropy)
-            print('-------------KLD--------------')
-            print(kld)
-            print('------------------------------')
 
+
+
+            print('Validation-it: {}, loss-val: {:.4f}, cross_entropy: {:.4f}, KL: {:.4f}, coef {:8f}'.format(iteration, lossVal, cross_entropyVal/args.batch_size, kldVal/args.batch_size,coef))
+        '''
+        if iteration % 10 == 0:
             ce_result += [cross_entropy]
             kld_result += [kld]
-
-        if iteration % 20 == 0:
+            
             seed = np.random.normal(size=[1, parameters.latent_variable_size])
-
             sample = rvae.sample(batch_loader, 50, seed, args.use_cuda)
-
-            print('\n')
             print('------------SAMPLE------------')
-            print('------------------------------')
             print(sample)
-            print('------------------------------')
 
     t.save(rvae.state_dict(), 'trained_RVAE')
 
-    np.save('ce_result_{}.npy'.format(args.ce_result), np.array(ce_result))
-    np.save('kld_result_npy_{}'.format(args.kld_result), np.array(kld_result))
+    np.save('output/ce_result_{}.npy'.format(args.ce_result), np.array(ce_result.data.cpu().numpy()))
+    np.save('output/kld_result_npy_{}'.format(args.kld_result), np.array(kld_result.data.cpu().numpy()))

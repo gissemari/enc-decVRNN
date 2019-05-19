@@ -14,7 +14,7 @@ if __name__ == '__main__':
         'trained model not found'
 
     parser = argparse.ArgumentParser(description='Sampler')
-    parser.add_argument('--use-cuda', type=bool, default=True, metavar='CUDA',
+    parser.add_argument('--use-cuda', type=bool, default=False, metavar='CUDA',
                         help='use cuda (default: True)')
     parser.add_argument('--num-sample', type=int, default=10, metavar='NS',
                         help='num samplings (default: 10)')

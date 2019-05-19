@@ -1,0 +1,10 @@
+The three phases: training, validaiton and sample call forward() the difference is that:
+- training provides a drop_out probability that I assume is to take into account or not the previous predicted word. Not actually, is to convert to zeroes some of the input, according to that probability. So it is not the same to take the previous predicted.
+- Sample and validation have a drop_out of 0, I guess it means that the decoder_input are not taken into account and it's pure generation
+- The difference between validation and sample is that in validation we still have the input for the encoder. However, in the sampling we no longer have the input for the encoder
+
+- Just added the softmax calculation in the VALIDATION stage.
+- Planning to add another validation that does the prediction step by step (as in sample) to see the real quality
+
+Combining VRNN-PYTORCH.
+- Adding the VRNN model as model/decoderVRNN.py

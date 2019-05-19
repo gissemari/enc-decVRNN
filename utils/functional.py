@@ -1,3 +1,5 @@
+import numpy as np
+
 def fold(f, l, a):
     return a if (len(l) == 0) else fold(f, l[1:], f(a, l[0]))
 
@@ -27,5 +29,14 @@ def handle_inputs(inputs, use_cuda):
 
 def kld_coef(i):
     import math
-    return (math.tanh((i - 3500)/1000) + 1)/2
+    return (math.tanh((i - 500)/500) + 1)/2
 
+def kl_anneal_function(step, totalIt, anneal_function='logistic'):
+
+    k=0.0025
+    x0=2500
+    if anneal_function == 'logistic':
+        return float(1/(1+np.exp(-k*(step-x0))))
+    elif anneal_function == 'linear':
+        x0 = totalIt
+        return min(1, step/x0)
