@@ -24,8 +24,8 @@ if __name__ == "__main__":
                         help='batch size (default: 32)')
     parser.add_argument('--use-VRNN', action='store_true',#default value True #type=bool, default=True, metavar='CUDA',
                         help='use VRNN as decoder (default: False)')
-    parser.add_argument('--use-cuda', type=bool, default=False, metavar='CUDA',
-                        help='use cuda (default: True)')
+    parser.add_argument('--use-cuda', action='store_true',#
+                        help='use cuda (default: False)')
     parser.add_argument('--learning-rate', type=float, default=0.0001, metavar='LR',
                         help='learning rate (default: 0.00005)')
     parser.add_argument('--dropout', type=float, default=0.3, metavar='DR',
@@ -49,6 +49,7 @@ if __name__ == "__main__":
     if args.use_trained:
         rvae.load_state_dict(t.load('trained_RVAE'))
     if args.use_cuda:
+        print("Using cuda")
         rvae = rvae.cuda()
 
     optimizer = Adam(rvae.learnable_parameters(), args.learning_rate)
@@ -111,7 +112,7 @@ if __name__ == "__main__":
         if iteration % 10 == 0:
             ce_result += [cross_entropy]
             kld_result += [kld]
-            
+
             seed = np.random.normal(size=[1, parameters.latent_variable_size])
             sample = rvae.sample(batch_loader, 50, seed, args.use_cuda)
             print('------------SAMPLE------------')
