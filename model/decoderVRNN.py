@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.utils
 import torch.utils.data
 import torch.nn.functional as F
-from torchvision import datasets, transforms
+#from torchvision import datasets, transforms
 from torch.autograd import Variable
 import matplotlib.pyplot as plt 
 
@@ -16,9 +16,10 @@ inference, prior, and generating models."""
 
 
 class VRNN(nn.Module):
-	def __init__(self, x_dim, h_dim, z_dim, n_layers,  word_vocab_size, bias=False):
+	def __init__(self, x_dim, h_dim, z_dim, n_layers,  word_vocab_size, bias=False, use_cuda=False):
 		super(VRNN, self).__init__()
 
+		self.use_cuda = use_cuda
 		self.x_dim = x_dim
 		self.h_dim = h_dim
 		self.z_dim = z_dim
@@ -101,10 +102,11 @@ class VRNN(nn.Module):
         '''
 
 		h = Variable(torch.zeros(self.n_layers, x.size(1), self.h_dim))
+		if self.use_cuda:
+			h = h.cuda() 
 		for t in range(x.size(0)):
 			
 			phi_x_t = self.phi_x(x[t])
-
 			#encoder
 			enc_t = self.enc(torch.cat([phi_x_t, h[-1]], 1))
 			enc_mean_t = self.enc_mean(enc_t)
@@ -125,7 +127,8 @@ class VRNN(nn.Module):
 			dec_std_t = self.dec_std(dec_t)
 
 			eps = Variable(torch.randn(dec_std_t.size(0), self.x_dim))
-			#print (eps.shape, dec_std_t.shape)
+			if self.use_cuda:
+				eps = eps.cuda()
 			aux = torch.exp(dec_std_t / 2) * eps
 			pred_we = dec_mean_t + aux
 			outputs.append(pred_we)
@@ -139,10 +142,10 @@ class VRNN(nn.Module):
 			nll_loss += self._nll_bernoulli(dec_mean_t, x[t])
 
 			#outputs.append(output) #rvae
-			all_enc_std.append(enc_std_t)
-			all_enc_mean.append(enc_mean_t)
-			all_dec_mean.append(dec_mean_t)
-			all_dec_std.append(dec_std_t)
+			all_enc_std.append(enc_std_t.detach())
+			all_enc_mean.append(enc_mean_t.detach())
+			all_dec_mean.append(dec_mean_t.detach())
+			all_dec_std.append(dec_std_t.detach())
 
 		outputs = torch.stack(outputs)
 		rnn_out = outputs.view(-1, self.x_dim)
@@ -161,6 +164,8 @@ class VRNN(nn.Module):
 		sample = torch.zeros(seq_len, self.x_dim)
 
 		h = Variable(torch.zeros(self.n_layers, 1, self.h_dim))
+		if self.use_cuda:
+			h = h.cuda()
 		for t in range(seq_len):
 
 			#prior
@@ -198,7 +203,10 @@ class VRNN(nn.Module):
 
 	def _reparameterized_sample(self, mean, std):
 		"""using std to sample"""
-		eps = torch.FloatTensor(std.size()).normal_()
+		if self.use_cuda:
+			eps = torch.cuda.FloatTensor(std.size()).normal_()
+		else:
+			eps = torch.FloatTensor(std.size()).normal_()
 		eps = Variable(eps)
 		return eps.mul(std).add_(mean)
 

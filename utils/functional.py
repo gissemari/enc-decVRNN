@@ -29,7 +29,10 @@ def handle_inputs(inputs, use_cuda):
 
 def kld_coef(i):
     import math
-    return (math.tanh((i - 500)/500) + 1)/2
+    k=0.025
+    x0=100
+    coef = float(1/(1+np.exp(-k*(i-x0))))
+    return coef#(math.tanh((i - 500)/500) + 1)/2
 
 def kl_anneal_function(step, totalIt, anneal_function='logistic'):
 
