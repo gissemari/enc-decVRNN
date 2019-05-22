@@ -115,7 +115,7 @@ if __name__ == '__main__':
     '''
 
     valid_step = rvae.validater(batch_loader)
-    dropout = 0 # % of decoder_input in the decoder
+    dropout = 1 # % of decoder_input in the decoder
     batch_size = 1
     for i in range(5): #len(data)
         if args.use_file:
@@ -128,10 +128,10 @@ if __name__ == '__main__':
             if args.use_cuda:
                 seed = seed.cuda()
 
-            cross_entropy, kld, logitsSoft, loss, results = valid_step(iteration, batch_size, args.use_cuda)#,batch_loader_2, 50, seed, args.use_cuda,i,beam_size,n_best
+            cross_entropy, kld, logitsSoft, loss, results = valid_step(iteration, batch_size, args.use_cuda, dropout)#,batch_loader_2, 50, seed, args.use_cuda,i,beam_size,n_best
             #results, scores = rvae.sampler(batch_loader,batch_loader_2, 50, seed, args.use_cuda,i,beam_size,n_best)
 
-            print (results)
+            print (iteration,results)
             '''
             for tt in results:
                 for k in range(n_best):

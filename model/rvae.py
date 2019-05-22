@@ -133,7 +133,7 @@ class RVAE(nn.Module):
         return train
 
     def validater(self, batch_loader):
-        def validate(i,batch_size, use_cuda):#, instance#i - iteration
+        def validate(i,batch_size, use_cuda,dropout):#, instance#i - iteration
             input = batch_loader.next_batch(batch_size, 'valid')
             input = [Variable(t.from_numpy(var)) for var in input]
             input = [var.long() for var in input]
@@ -141,7 +141,7 @@ class RVAE(nn.Module):
 
             [encoder_word_input, encoder_character_input, decoder_word_input, decoder_character_input, target] = input
 
-            logits, _, kld , kld_local, nll_local= self(0., #none input is converted to 0
+            logits, _, kld , kld_local, nll_local= self(dropout, #none input is converted to 0
                                   encoder_word_input, encoder_character_input,
                                   decoder_word_input, decoder_character_input,
                                   z=None)
@@ -159,8 +159,9 @@ class RVAE(nn.Module):
             # Gissella. to decoder wordEmbedding for output
             seq_len = 20
             result = ''
-            for i in range(seq_len):
-                word = batch_loader.sample_word_from_distribution(logitsSoft.data.cpu().numpy()[-1])#
+            print (logitsSoft.shape)
+            for i in range(logitsSoft.shape[0]):
+                word = batch_loader.sample_word_from_distribution(logitsSoft.data.cpu().numpy()[i])#-1
                 if word == batch_loader.end_token:
                     break
                 result += ' ' + word
