@@ -8,3 +8,6 @@ The three phases: training, validaiton and sample call forward() the difference 
 
 Combining VRNN-PYTORCH.
 - Adding the VRNN model as model/decoderVRNN.py
+- Some adjustments needed to be done in order to make CUDA owk in SPIEDIE. Basically as now we have a lot of partial results in VRNN, we were running out of memory in GPU mode. We detach() the results we were appending and vualá.
+
+- Now we are copying the test file from paraphrase generation to this repository that did not have it. Moving also the beam_search files

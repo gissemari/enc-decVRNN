@@ -67,7 +67,7 @@ class RVAE(nn.Module):
 
             encoder_input = self.embedding(encoder_word_input, encoder_character_input)
 
-            context, h_0 , c_0 = self.encoder(encoder_input) #final state
+            context, h_0 , c_0 = self.encoder(encoder_input,None) #final state
 
             mu = self.context_to_mu(context)
             logvar = self.context_to_logvar(context) # to z sampled from 
