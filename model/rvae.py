@@ -11,10 +11,10 @@ from .encoder import Encoder
 from selfModules.embedding import Embedding
 
 from utils.functional import kld_coef, parameters_allocation_check, fold,kl_anneal_function
-
+from beam_search import Beam
 
 class RVAE(nn.Module):
-    def __init__(self, params, use_VRNN, use_cuda):
+    def __init__(self, params, use_VRNN, use_cuda=False):
         super(RVAE, self).__init__()
 
         self.params = params
@@ -67,7 +67,7 @@ class RVAE(nn.Module):
 
             encoder_input = self.embedding(encoder_word_input, encoder_character_input)
 
-            context = self.encoder(encoder_input) #final state
+            context, h_0 , c_0 = self.encoder(encoder_input) #final state
 
             mu = self.context_to_mu(context)
             logvar = self.context_to_logvar(context) # to z sampled from 
@@ -122,7 +122,7 @@ class RVAE(nn.Module):
             '''
             kldWeight = kld_coef(i)# kl_anneal_function(i)
             #cross_entropy +
-            loss =  ( kldWeight* kld_global + kldWeight*kld_local + nll_local/100)/batch_size #if taken out (79), it vanishes fast -> kl annealing. taken back:79 * cross_entropy
+            loss =  ( kldWeight* kld_global + kldWeight*kld_local + nll_local/10000)/batch_size #if taken out (79), it vanishes fast -> kl annealing. taken back:79 * cross_entropy
 
             optimizer.zero_grad()
             loss.backward()
@@ -133,7 +133,7 @@ class RVAE(nn.Module):
         return train
 
     def validater(self, batch_loader):
-        def validate(i,batch_size, use_cuda, instance):#i - iteration
+        def validate(i,batch_size, use_cuda):#, instance#i - iteration
             input = batch_loader.next_batch(batch_size, 'valid')
             input = [Variable(t.from_numpy(var)) for var in input]
             input = [var.long() for var in input]
@@ -153,10 +153,19 @@ class RVAE(nn.Module):
 
             cross_entropy = F.cross_entropy(logits, target,size_average=False)
 
-            kldWeight = 1# kl_anneal_function(i)
+            kldWeight = kld_coef(i)#1# kl_anneal_function(i)
             loss =  (cross_entropy +  kldWeight* kld)/batch_size
 
-            return cross_entropy, kld, logitsSoft, loss, encoder_word_input[instance]
+            # Gissella. to decoder wordEmbedding for output
+            seq_len = 20
+            result = ''
+            for i in range(seq_len):
+                word = batch_loader.sample_word_from_distribution(logitsSoft.data.cpu().numpy()[-1])#
+                if word == batch_loader.end_token:
+                    break
+                result += ' ' + word
+
+            return cross_entropy, kld, logitsSoft, loss, result# encoder_word_input[instance]
 
         return validate
 

@@ -20,5 +20,5 @@ class Parameters:
 
         self.latent_variable_size = 32#64#1100
 
-        self.decoder_rnn_size = 64#100#800
-        self.decoder_num_layers = 1#2
+        self.decoder_rnn_size = 24#48#100#800
+        self.decoder_num_layers = 3#2

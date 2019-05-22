@@ -29,8 +29,8 @@ def handle_inputs(inputs, use_cuda):
 
 def kld_coef(i):
     import math
-    k=0.025
-    x0=100
+    k=0.005
+    x0=500
     coef = float(1/(1+np.exp(-k*(i-x0))))
     return coef#(math.tanh((i - 500)/500) + 1)/2
 

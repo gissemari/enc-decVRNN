@@ -39,7 +39,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    batch_loader = BatchLoader('')
+    batch_loader = BatchLoader(path='')
     parameters = Parameters(batch_loader.max_word_len,
                             batch_loader.max_seq_len,
                             batch_loader.words_vocab_size,
@@ -111,15 +111,13 @@ if __name__ == "__main__":
             print('Validation-it: {}, loss-val: {:.4f}, cross_entropy: {:.4f}, KL: {:.4f}, coef {:8f}'.format(iteration, lossVal, cross_entropyVal/args.batch_size, kldVal/args.batch_size,coef))
         '''
         if iteration % 10 == 0:
-            #ce_result += [cross_entropy]
-            #kld_result += [kld]
+            ce_result += [cross_entropy]
+            kld_result += [kld]
 
-            '''
             seed = np.random.normal(size=[1, parameters.latent_variable_size])
             sample = rvae.sample(batch_loader, 50, seed, args.use_cuda)
             print('------------SAMPLE------------')
             print(sample)
-            '''
 
     t.save(rvae.state_dict(), 'trained_RVAE')
 
