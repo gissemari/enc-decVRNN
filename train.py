@@ -39,13 +39,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    batch_loader = BatchLoader('')
+    batch_loader = BatchLoader(path='')
     parameters = Parameters(batch_loader.max_word_len,
                             batch_loader.max_seq_len,
                             batch_loader.words_vocab_size,
                             batch_loader.chars_vocab_size)
 
-    rvae = RVAE(parameters, args.use_VRNN)
+    rvae = RVAE(parameters, args.use_VRNN, args.use_cuda)
     if args.use_trained:
         rvae.load_state_dict(t.load('trained_RVAE'))
     if args.use_cuda:
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     scheduler = MultiStepLR(optimizer, milestones=[100], gamma=0.1)
     for iteration in range(args.num_iterations):
         scheduler.step()
-        cross_entropy, kld, coef,loss = train_step(iteration, args.batch_size, args.use_cuda, args.dropout)
+        cross_entropy, nll_local, kld, kld_local, coef,loss = train_step(iteration, args.batch_size, args.use_cuda, args.dropout)
 
         '''
         if iteration % 5 == 0:
@@ -73,7 +73,8 @@ if __name__ == "__main__":
             print(iteration,cross_entropy.data.cpu().numpy(),kld.data.cpu().numpy(),coef)
             print('------------------------------')
         '''
-        print('Train-it: {}, loss: {:.4f}, cross_entropy: {:.4f}, KL: {:.4f}, coef {:8f}'.format(iteration, loss, cross_entropy/args.batch_size, kld/args.batch_size,coef))
+        print('Train-it: {}, loss: {:.4f} nll {:.4f} cross_entropy: {:.4f} KL: {:.4f} KL-local: {:.4f} coef {:8f}'.format(iteration, loss, nll_local, cross_entropy/args.batch_size, kld/args.batch_size,kld_local/args.batch_size ,coef))
+        #print('Train-it: {}, loss: {:.4f}, cross_entropy: {:.4f} KL: {:.4f} KL-local: {:.4f} coef {:8f}'.format(iteration, loss/args.batch_size, nll_local/args.batch_size, cross_entropy/args.batch_size, kld/args.batch_size,kld_local/args.batch_size ,coef))
         '''
         if iteration % 10 == 0:
             instance = 5
@@ -120,5 +121,5 @@ if __name__ == "__main__":
 
     t.save(rvae.state_dict(), 'trained_RVAE')
 
-    np.save('output/ce_result_{}.npy'.format(args.ce_result), np.array(ce_result.data.cpu().numpy()))
-    np.save('output/kld_result_npy_{}'.format(args.kld_result), np.array(kld_result.data.cpu().numpy()))
+    np.save('output/ce_result_{}.npy'.format(args.ce_result), np.array(ce_result))
+    np.save('output/kld_result_npy_{}'.format(args.kld_result), np.array(kld_result))

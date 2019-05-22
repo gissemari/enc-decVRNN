@@ -11,10 +11,10 @@ from .encoder import Encoder
 from selfModules.embedding import Embedding
 
 from utils.functional import kld_coef, parameters_allocation_check, fold,kl_anneal_function
-
+from beam_search import Beam
 
 class RVAE(nn.Module):
-    def __init__(self, params, use_VRNN):
+    def __init__(self, params, use_VRNN, use_cuda=False):
         super(RVAE, self).__init__()
 
         self.params = params
@@ -28,7 +28,7 @@ class RVAE(nn.Module):
 
         if use_VRNN:
             print ("Using DecVRNN")
-            self.decoder = VRNN(self.params.word_embed_size, self.params.decoder_rnn_size, self.params.latent_variable_size, self.params.decoder_num_layers, self.params.word_vocab_size) #x_dim, h_dim, z_dim, n_layers
+            self.decoder = VRNN(self.params.word_embed_size, self.params.decoder_rnn_size, self.params.latent_variable_size, self.params.decoder_num_layers, self.params.word_vocab_size, use_cuda=use_cuda) #x_dim, h_dim, z_dim, n_layers
         else:
             self.decoder = Decoder(self.params)
 
@@ -67,7 +67,7 @@ class RVAE(nn.Module):
 
             encoder_input = self.embedding(encoder_word_input, encoder_character_input)
 
-            context = self.encoder(encoder_input) #final state
+            context, h_0 , c_0 = self.encoder(encoder_input) #final state
 
             mu = self.context_to_mu(context)
             logvar = self.context_to_logvar(context) # to z sampled from 
@@ -86,11 +86,10 @@ class RVAE(nn.Module):
             kld = None
 
         decoder_input = self.embedding.word_embed(decoder_word_input)
-
-        kld_loss, nll_loss, (all_enc_mean, all_enc_std), (all_dec_mean, all_dec_std), out, final_state = self.decoder(decoder_input, z, drop_prob, initial_state)
+        kld_local, nll_local, (all_enc_mean, all_enc_std), (all_dec_mean, all_dec_std), out, final_state = self.decoder(decoder_input, z, drop_prob, initial_state)
         # zeroes some of the elements of the input tensor with probability p
 
-        return out, final_state, kld
+        return out, final_state,  kld, kld_local, nll_local
 
     def learnable_parameters(self):
 
@@ -106,7 +105,7 @@ class RVAE(nn.Module):
 
             [encoder_word_input, encoder_character_input, decoder_word_input, decoder_character_input, target] = input
 
-            logits, _, kld = self(dropout,
+            logits, _, kld_global, kld_local, nll_local = self(dropout,
                                   encoder_word_input, encoder_character_input,
                                   decoder_word_input, decoder_character_input,
                                   z=None)
@@ -122,18 +121,19 @@ class RVAE(nn.Module):
             loss = (NLL_loss + KL_weight * KL_loss)/batch_size
             '''
             kldWeight = kld_coef(i)# kl_anneal_function(i)
-            loss =  (cross_entropy +  kldWeight* kld)/batch_size #if taken out (79), it vanishes fast -> kl annealing. taken back:79 * cross_entropy
+            #cross_entropy +
+            loss =  ( kldWeight* kld_global + kldWeight*kld_local + nll_local/10000)/batch_size #if taken out (79), it vanishes fast -> kl annealing. taken back:79 * cross_entropy
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            return cross_entropy, kld, kldWeight, loss# kld_coef(i) #also Sentence-VAE does for iteration
+            return cross_entropy, nll_local, kld_global, kld_local, kldWeight, loss# kld_coef(i) #also Sentence-VAE does for iteration
 
         return train
 
     def validater(self, batch_loader):
-        def validate(i,batch_size, use_cuda, instance):#i - iteration
+        def validate(i,batch_size, use_cuda):#, instance#i - iteration
             input = batch_loader.next_batch(batch_size, 'valid')
             input = [Variable(t.from_numpy(var)) for var in input]
             input = [var.long() for var in input]
@@ -141,7 +141,7 @@ class RVAE(nn.Module):
 
             [encoder_word_input, encoder_character_input, decoder_word_input, decoder_character_input, target] = input
 
-            logits, _, kld = self(0., #none input is converted to 0
+            logits, _, kld , kld_local, nll_local= self(0., #none input is converted to 0
                                   encoder_word_input, encoder_character_input,
                                   decoder_word_input, decoder_character_input,
                                   z=None)
@@ -153,10 +153,19 @@ class RVAE(nn.Module):
 
             cross_entropy = F.cross_entropy(logits, target,size_average=False)
 
-            kldWeight = kl_anneal_function(i)
+            kldWeight = kld_coef(i)#1# kl_anneal_function(i)
             loss =  (cross_entropy +  kldWeight* kld)/batch_size
 
-            return cross_entropy, kld, logitsSoft, loss, encoder_word_input[instance]
+            # Gissella. to decoder wordEmbedding for output
+            seq_len = 20
+            result = ''
+            for i in range(seq_len):
+                word = batch_loader.sample_word_from_distribution(logitsSoft.data.cpu().numpy()[-1])#
+                if word == batch_loader.end_token:
+                    break
+                result += ' ' + word
+
+            return cross_entropy, kld, logitsSoft, loss, result# encoder_word_input[instance]
 
         return validate
 
@@ -179,7 +188,7 @@ class RVAE(nn.Module):
         initial_state = None
 
         for i in range(seq_len):
-            logits, initial_state, _ = self(0., None, None,
+            logits, initial_state, _, kld_local, nll_local = self(0., None, None,
                                             decoder_word_input, decoder_character_input,
                                             seed, initial_state)
 

@@ -9,7 +9,7 @@ from .functional import *
 
 
 class BatchLoader:
-    def __init__(self, path='../../'):
+    def __init__(self,data_files=None, idx_files=None, tensor_files=None,  path='../../'):
 
         '''
             :properties
@@ -73,16 +73,25 @@ class BatchLoader:
                         in case of performance
         '''
 
-        self.data_files = [path + 'data/train.txt',
-                           path + 'data/test.txt']
+        if data_files is None:
+            self.data_files = [path + 'data/train.txt',
+                               path + 'data/test.txt']
+        else:
+            self.data_files = data_files
 
-        self.idx_files = [path + 'data/words_vocab.pkl',
-                          path + 'data/characters_vocab.pkl']
+        if idx_files is None:
+            self.idx_files = [path + 'data/words_vocab.pkl',
+                              path + 'data/characters_vocab.pkl']
+        else:
+            self.idx_files = idx_files
 
-        self.tensor_files = [[path + 'data/train_word_tensor.npy',
-                              path + 'data/valid_word_tensor.npy'],
-                             [path + 'data/train_character_tensor.npy',
-                              path + 'data/valid_character_tensor.npy']]
+        if tensor_files is None:
+            self.tensor_files = [[path + 'data/train_word_tensor.npy',
+                                  path + 'data/valid_word_tensor.npy'],
+                                 [path + 'data/train_character_tensor.npy',
+                                  path + 'data/valid_character_tensor.npy']]
+        else:
+            self.tensor_files = tensor_files
 
         self.blind_symbol = ''
         self.pad_token = '_'
@@ -99,15 +108,17 @@ class BatchLoader:
                               True)
 
         if idx_exists and tensors_exists:
+            print('preprocessed data was found and loaded')
             self.load_preprocessed(self.data_files,
                                    self.idx_files,
                                    self.tensor_files)
-            print('preprocessed data was found and loaded')
+            
         else:
+            print('data have preprocessed')
             self.preprocess(self.data_files,
                             self.idx_files,
                             self.tensor_files)
-            print('data have preprocessed')
+            
 
         self.word_embedding_index = 0
 
@@ -226,8 +237,8 @@ class BatchLoader:
         self.just_words = [word for line in self.word_tensor[0] for word in line]
 
     def next_batch(self, batch_size, target_str, includeLengths=False):
-        target = 0 if target_str == 'train' else 1
-
+        target = 0# if target_str == 'train' else 1
+        #phraphrase always use 0 why?
         indexes = np.array(np.random.randint(self.num_lines[target], size=batch_size))
 
         encoder_word_input = [self.word_tensor[target][index] for index in indexes]

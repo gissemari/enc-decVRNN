@@ -20,7 +20,7 @@ class Encoder(nn.Module):
                            batch_first=True,
                            bidirectional=True)
 
-    def forward(self, input):
+    def forward(self, input, State):
         """
         :param input: [batch_size, seq_len, embed_size] tensor
         :return: context of input sentenses with shape of [batch_size, latent_variable_size]
@@ -35,8 +35,8 @@ class Encoder(nn.Module):
         #assert parameters_allocation_check(self), 'Invalid CUDA options. Parameters should be allocated in the same memory'
 
         ''' Unfold rnn with zero initial state and get its final state from the last layer
-        '''
-        _, (_, final_state) = self.rnn(input)
+        
+        _, (_, final_state) = self.rnn(input, State)
 
         final_state = final_state.view(self.params.encoder_num_layers, 2, batch_size, self.params.encoder_rnn_size)
         final_state = final_state[-1]
@@ -44,3 +44,13 @@ class Encoder(nn.Module):
         final_state = t.cat([h_1, h_2], 1)
 
         return final_state
+        '''
+        _, (transfer_state_1, final_state) = self.rnn(input, State)
+        transfer_state_2 = final_state
+        
+        final_state = final_state.view(self.params.encoder_num_layers, 2, batch_size, self.params.encoder_rnn_size)
+        final_state = final_state[-1]
+        h_1, h_2 = final_state[0], final_state[1]
+        final_state = t.cat([h_1, h_2], 1)
+
+        return final_state, transfer_state_1, transfer_state_2
