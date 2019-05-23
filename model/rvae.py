@@ -213,3 +213,151 @@ class RVAE(nn.Module):
                 decoder_word_input, decoder_character_input = decoder_word_input.cuda(), decoder_character_input.cuda()
 
         return result
+
+
+    ######### Adding this function from paraphrase generation repository
+    
+    def sampler(self, batch_loader,batch_loader_2, seq_len, seed, use_cuda,i,beam_size,n_best):
+        input = batch_loader.next_batch(1, 'valid', i)
+        input = [Variable(t.from_numpy(var)) for var in input]
+        input = [var.long() for var in input]
+        input = [var.cuda() if use_cuda else var for var in input]
+        [encoder_word_input, encoder_character_input, decoder_word_input, decoder_character_input, target] = input
+
+        encoder_input = self.embedding(encoder_word_input, encoder_character_input)
+
+        _ , h0 , c0 = self.encoder(encoder_input, None)
+        State = (h0,c0)
+
+        # print '----------------------'
+        # print 'Printing h0 ---------->'
+        # print h0
+        # print '----------------------'
+
+        # State = None
+        results, scores = self.sample_beam(batch_loader, seq_len, seed, use_cuda, State, beam_size, n_best)
+
+        return results, scores
+
+    def sample_beam(self, batch_loader, seq_len, seed, use_cuda, State, beam_size, n_best):
+        # seed = Variable(t.from_numpy(seed).float())
+        if use_cuda:
+            seed = seed.cuda()
+
+        decoder_word_input_np, decoder_character_input_np = batch_loader.go_input(1)
+
+        decoder_word_input = Variable(t.from_numpy(decoder_word_input_np).long())
+        decoder_character_input = Variable(t.from_numpy(decoder_character_input_np).long())
+
+        if use_cuda:
+            decoder_word_input, decoder_character_input = decoder_word_input.cuda(), decoder_character_input.cuda()
+
+        dec_states = State
+
+        dec_states = [
+            dec_states[0].repeat(1, beam_size, 1),
+            dec_states[1].repeat(1, beam_size, 1)
+        ]
+
+
+        drop_prob = 0.0
+        beam_size = beam_size
+        batch_size = 1  
+        
+        beam = [Beam(beam_size, batch_loader, cuda=use_cuda) for k in range(batch_size)]
+
+        batch_idx = list(range(batch_size))
+        remaining_sents = batch_size
+        
+        
+        for i in range(seq_len):
+            
+            input = t.stack([b.get_current_state() for b in beam if not b.done]).t().contiguous().view(1, -1)
+
+            trg_emb = self.embedding.word_embed(Variable(input).transpose(1, 0))
+            
+            kld_loss, nll_loss, (all_enc_mean, all_enc_std), (all_dec_mean, all_dec_std), trg_h, dec_states =self.decoder(trg_emb, seed, drop_prob, dec_states)
+            '''
+            trg_h, dec_states = self.decoder.only_decoder_beam(trg_emb, seed, drop_prob, dec_states)
+            '''
+            dec_out = trg_h.squeeze(1)
+            out = F.softmax(self.decoder.fc(dec_out)).unsqueeze(0)
+            
+            word_lk = out.view(
+                beam_size,
+                remaining_sents,
+                -1
+            ).transpose(0, 1).contiguous()
+
+            active = []
+            for b in range(batch_size):
+                if beam[b].done:
+                    continue
+
+                idx = batch_idx[b]
+                if not beam[b].advance(word_lk.data[idx]):
+                    active += [b]
+
+                for dec_state in dec_states:  # iterate over h, c
+                    # layers x beam*sent x dim
+                    sent_states = dec_state.view(
+                        -1, beam_size, remaining_sents, dec_state.size(2)
+                    )[:, :, idx]
+                    sent_states.data.copy_(
+                        sent_states.data.index_select(
+                            1,
+                            beam[b].get_current_origin()
+                        )
+                    )
+
+            if not active:
+                break
+
+            # in this section, the sentences that are still active are
+            # compacted so that the decoder is not run on completed sentences
+            if use_cuda:
+                active_idx = t.cuda.LongTensor([batch_idx[k] for k in active])
+            else:
+                active_idx = t.LongTensor([batch_idx[k] for k in active])
+            batch_idx = {beam: idx for idx, beam in enumerate(active)}
+
+            def update_active(t):
+                # select only the remaining active sentences
+                view = t.data.view(
+                    -1, remaining_sents,
+                    self.params.decoder_rnn_size
+                )
+                new_size = list(t.size())
+                new_size[-2] = new_size[-2] * len(active_idx) \
+                    // remaining_sents
+                return Variable(view.index_select(
+                    1, active_idx
+                ).view(*new_size))
+
+            dec_states = (
+                update_active(dec_states[0]),
+                update_active(dec_states[1])
+            )
+            dec_out = update_active(dec_out)
+            # context = update_active(context)
+
+            remaining_sents = len(active) 
+
+         # (4) package everything up
+
+        allHyp, allScores = [], []
+
+
+        for b in range(batch_size):
+            scores, ks = beam[b].sort_best()
+            # print scores
+            # print ks 
+            allScores += [scores[:n_best]]
+            hyps = zip(*[beam[b].get_hyp(k) for k in ks[:n_best]])
+            # print hyps
+            # print "------------------"
+            allHyp += [hyps]
+
+        # print '==== Complete ========='
+
+        return allHyp, allScores 

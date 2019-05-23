@@ -74,7 +74,46 @@ class VRNN(nn.Module):
 		self.rnn = nn.GRU(h_dim + h_dim, h_dim, n_layers, bias)
 		self.fc = nn.Linear(x_dim, self.word_vocab_size)
 
-	def forward(self, x, z_global, drop_prob, initial_state): #decoder_input, z, drop_prob, initial_state
+	def only_decoder_beam(self, decoder_input, z, drop_prob, initial_state=None):
+        
+		#assert parameters_allocation_check(self), \
+		#    'Invalid CUDA options. Parameters should be allocated in the same memory'
+
+		#         print decoder_input.size()
+		 
+		[beam_batch_size, _, _] = decoder_input.size()
+
+		'''
+		    decoder rnn is conditioned on context via additional bias = W_cond * z to every input token
+		'''
+		decoder_input = F.dropout(decoder_input, drop_prob)
+
+		z = z.unsqueeze(0)
+
+		#         print z.size()
+
+		z = torch.cat([z] * beam_batch_size, 0)
+
+		#         print z.size()
+		#         z = z.contiguous().view(1, -1)
+
+		#         z = z.view(beam_batch_size, self.params.latent_variable_size)
+
+		#         print z.size() 
+
+		decoder_input = torch.cat([decoder_input, z], 2)
+
+		#         print "decoder_input:",decoder_input.size() 
+
+		rnn_out, final_state = self.rnn(decoder_input, initial_state) 
+
+		#         print "rnn_out:",rnn_out.size()
+		#         print "final_state_1:",final_state[0].size()
+		#         print "final_state_1:",final_state[1].size()   
+
+		return rnn_out, final_state
+
+	def forward(self, x, z_global, drop_prob, initial_state, sampling=False): #decoder_input, z, drop_prob, initial_state
 		'''
         :x is expected as [t,b,v] param decoder_input: tensor with shape of [batch_size, seq_len, embed_size]
         :param z: sequence context with shape of [batch_size, latent_variable_size]
@@ -118,7 +157,10 @@ class VRNN(nn.Module):
 			prior_std_t = self.prior_std(prior_t)
 
 			#sampling and reparameterization
-			z_t = self._reparameterized_sample(enc_mean_t, enc_std_t)
+			if sampling:
+				z_t = self._reparameterized_sample(prior_mean_t, prior_std_t)
+			else:
+				z_t = self._reparameterized_sample(enc_mean_t, enc_std_t)
 			phi_z_t = self.phi_z(z_t)
 
 			#decoder

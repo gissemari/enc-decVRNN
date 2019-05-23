@@ -18,6 +18,8 @@ if __name__ == '__main__':
         'trained model not found'
 
     parser = argparse.ArgumentParser(description='Sampler')
+    parser.add_argument('--pureGenerator', action='store_true',#
+                        help='use cuda (default: False)')
     parser.add_argument('--use-cuda', action='store_true',#
                         help='use cuda (default: False)')
     parser.add_argument('--num-sample', type=int, default=5, metavar='NS',
@@ -52,6 +54,7 @@ if __name__ == '__main__':
 
     ''' ================================= BatchLoader loading ===============================================
     '''
+
     data_files = [args.test_file]
 
     idx_files = ['data/words_vocab.pkl',
@@ -128,17 +131,17 @@ if __name__ == '__main__':
             if args.use_cuda:
                 seed = seed.cuda()
 
-            cross_entropy, kld, logitsSoft, loss, results = valid_step(iteration, batch_size, args.use_cuda, dropout)#,batch_loader_2, 50, seed, args.use_cuda,i,beam_size,n_best
-            #results, scores = rvae.sampler(batch_loader,batch_loader_2, 50, seed, args.use_cuda,i,beam_size,n_best)
+            if args.pureGenerator:
+                results, scores = rvae.sampler(batch_loader,batch_loader_2, 50, seed, args.use_cuda,i,beam_size,n_best)
+                for tt in results:
+                    for k in range(n_best):
+                        sen = " ". join([batch_loader_2.decode_word(x[k]) for x in tt])
+                    if batch_loader.end_token in sen:    
+                        print (sen[:sen.index(batch_loader.end_token)])
+                    else :
+                        print (sen    )  
+            else:
+                cross_entropy, kld, logitsSoft, loss, results = valid_step(iteration, batch_size, args.use_cuda, dropout)#,batch_loader_2, 50, seed, args.use_cuda,i,beam_size,n_best
 
             print (iteration,results)
-            '''
-            for tt in results:
-                for k in range(n_best):
-                    sen = " ". join([batch_loader_2.decode_word(x[k]) for x in tt])
-                if batch_loader.end_token in sen:    
-                    print (sen[:sen.index(batch_loader.end_token)])
-                else :
-                    print (sen    )  
-            '''
         print ('\n')
