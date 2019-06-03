@@ -60,33 +60,38 @@ class RVAE(nn.Module):
             or (z is not None and decoder_word_input is not None), \
             "Invalid input. If z is None then encoder and decoder inputs should be passed as arguments"
 
-        if z is None:
-            ''' Get context from encoder and sample z ~ N(mu, std)
-            '''
-            [batch_size, _] = encoder_word_input.size()
+        #if z is None:
+        ''' Get context from encoder and sample z ~ N(mu, std)
+        '''
+        [batch_size, _] = encoder_word_input.size()
 
-            encoder_input = self.embedding(encoder_word_input, encoder_character_input)
+        encoder_input = self.embedding(encoder_word_input, encoder_character_input)
 
-            context, h_0 , c_0 = self.encoder(encoder_input,None) #final state
+        context, h_0 , c_0 = self.encoder(encoder_input,None) #final state
 
-            mu = self.context_to_mu(context)
-            logvar = self.context_to_logvar(context) # to z sampled from 
-            std = t.exp(0.5 * logvar)
+        mu = self.context_to_mu(context)
+        logvar = self.context_to_logvar(context) # to z sampled from 
+        std = t.exp(0.5 * logvar)
 
-            z = Variable(t.randn([batch_size, self.params.latent_variable_size]))
-            if use_cuda:
-                z = z.cuda()
+        z = Variable(t.randn([batch_size, self.params.latent_variable_size]))
+        if use_cuda:
+            z = z.cuda()
 
-            z = z * std + mu
+        z = z * std + mu
 
-            # sentence-VAE 
-            kld = -0.5 * t.sum(1 + logvar - t.pow(mu,2) - t.exp(logvar))
-            #kld = (-0.5 * t.sum(logvar - t.pow(mu, 2) - t.exp(logvar) + 1, 1)).mean().squeeze()
-        else:
-            kld = None
+        # sentence-VAE 
+        kld = -0.5 * t.sum(1 + logvar - t.pow(mu,2) - t.exp(logvar))
+        #print("h-c",h_0.shape, context.shape)#4,64,48 - 64,96
+        initial_state = [h_0, c_0]
+        #print("initial_state in rvae ",initial_state[0].shape)#2,64
+        #kld = (-0.5 * t.sum(logvar - t.pow(mu, 2) - t.exp(logvar) + 1, 1)).mean().squeeze()
 
+       # else:
+       #     kld = None
+
+        #print("initial_state in rvae 2",initial_state[0].shape)
         decoder_input = self.embedding.word_embed(decoder_word_input)
-        kld_local, nll_local, (all_enc_mean, all_enc_std), (all_dec_mean, all_dec_std), out, final_state = self.decoder(decoder_input, z, drop_prob, initial_state)
+        kld_local, nll_local, (all_enc_mean, all_enc_std), (all_dec_mean, all_dec_std), out, final_state = self.decoder(decoder_input, z, drop_prob, initial_state[0])
         # zeroes some of the elements of the input tensor with probability p
 
         return out, final_state,  kld, kld_local, nll_local
@@ -217,8 +222,8 @@ class RVAE(nn.Module):
 
     ######### Adding this function from paraphrase generation repository
     
-    def sampler(self, batch_loader,batch_loader_2, seq_len, seed, use_cuda,i,beam_size,n_best):
-        input = batch_loader.next_batch(1, 'valid', i)
+    def sampler(self, batch_loader, seq_len, seed, use_cuda,i,beam_size,n_best):
+        input = batch_loader.next_batch(1, 'valid')
         input = [Variable(t.from_numpy(var)) for var in input]
         input = [var.long() for var in input]
         input = [var.cuda() if use_cuda else var for var in input]
@@ -253,20 +258,23 @@ class RVAE(nn.Module):
             decoder_word_input, decoder_character_input = decoder_word_input.cuda(), decoder_character_input.cuda()
 
         dec_states = State
-
+        #print ("decStates antes",dec_states[0].shape) #([2, 1, 64] #2 layers, 1 step, 64 units en enc
+        '''
         dec_states = [
             dec_states[0].repeat(1, beam_size, 1),
             dec_states[1].repeat(1, beam_size, 1)
         ]
-
-
+        '''
+        dec_states = dec_states[0].repeat(1, beam_size, 1)
+        #print ("decStates despues",dec_states[0].shape) #2,5,64
         drop_prob = 0.0
         beam_size = beam_size
-        batch_size = 1  
+        batch_size = 1
         
         beam = [Beam(beam_size, batch_loader, cuda=use_cuda) for k in range(batch_size)]
 
         batch_idx = list(range(batch_size))
+        #print("batch_idx ", batch_idx)
         remaining_sents = batch_size
         
         
@@ -276,19 +284,22 @@ class RVAE(nn.Module):
 
             trg_emb = self.embedding.word_embed(Variable(input).transpose(1, 0))
             
-            kld_loss, nll_loss, (all_enc_mean, all_enc_std), (all_dec_mean, all_dec_std), trg_h, dec_states =self.decoder(trg_emb, seed, drop_prob, dec_states)
-            '''
-            trg_h, dec_states = self.decoder.only_decoder_beam(trg_emb, seed, drop_prob, dec_states)
-            '''
-            dec_out = trg_h.squeeze(1)
-            out = F.softmax(self.decoder.fc(dec_out)).unsqueeze(0)
+            kld_loss, nll_loss, (all_enc_mean, all_enc_std), (all_dec_mean, all_dec_std), trg_h, dec_states =self.decoder(trg_emb, seed, drop_prob, dec_states, sampling=True)
             
-            word_lk = out.view(
+            #trg_h, dec_states = self.decoder.only_decoder_beam(trg_emb, seed, drop_prob, dec_states)
+            #print("dec_states after decoder fwd ", dec_states.shape)
+            #print (trg_h.shape)
+            dec_out = trg_h.squeeze(1)
+            #print ("dec_out ",dec_out.shape) #beam_size
+            #out = F.softmax(self.decoder.fc(dec_out)).unsqueeze(0)
+            out = F.softmax(dec_out).unsqueeze(0)
+            #out = dec_out
+            word_lk = out.view(#5,1,1002 #probabilities
                 beam_size,
                 remaining_sents,
                 -1
-            ).transpose(0, 1).contiguous()
-
+            ).transpose(0, 1).contiguous()#1,5,1002
+            #print("word ",word_lk,word_lk.shape)
             active = []
             for b in range(batch_size):
                 if beam[b].done:
@@ -298,18 +309,18 @@ class RVAE(nn.Module):
                 if not beam[b].advance(word_lk.data[idx]):
                     active += [b]
 
+                '''
                 for dec_state in dec_states:  # iterate over h, c
                     # layers x beam*sent x dim
-                    sent_states = dec_state.view(
-                        -1, beam_size, remaining_sents, dec_state.size(2)
-                    )[:, :, idx]
+                    print(dec_state.shape)#5,24
+                    size2 = dec_state.size(2)
+                    aux = dec_state.view(-1, beam_size, remaining_sents, size2) #remaining_sents =batchsize
+                    print(aux.shape)
+                    sent_states = aux[:, :, idx]
                     sent_states.data.copy_(
-                        sent_states.data.index_select(
-                            1,
-                            beam[b].get_current_origin()
-                        )
+                        sent_states.data.index_select(1,beam[b].get_current_origin())
                     )
-
+                '''
             if not active:
                 break
 
@@ -333,12 +344,14 @@ class RVAE(nn.Module):
                 return Variable(view.index_select(
                     1, active_idx
                 ).view(*new_size))
-
+            '''
             dec_states = (
                 update_active(dec_states[0]),
-                update_active(dec_states[1])
+                #update_active(dec_states[1])
             )
-            dec_out = update_active(dec_out)
+            '''
+            dec_states = update_active(dec_states[0])
+            #dec_out = update_active(dec_out)
             # context = update_active(context)
 
             remaining_sents = len(active) 

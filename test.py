@@ -28,7 +28,7 @@ if __name__ == '__main__':
                         help='num samplings (default: 10)')
     parser.add_argument('--beam-top', type=int, default=3, metavar='NS',
                         help='beam top (default: 1)')
-    parser.add_argument('--beam-size', type=int, default=10, metavar='NS',
+    parser.add_argument('--beam-size', type=int, default=5, metavar='NS',
                         help='beam size (default: 10)')
     parser.add_argument('--use-file', type=bool, default=True, metavar='NS',
                         help='use file (default: False)')
@@ -45,12 +45,7 @@ if __name__ == '__main__':
     if os.path.exists('data/test_character_tensor.npy'):
         os.remove('data/test_character_tensor.npy')
 
-    str =''
-    if not args.use_file:
-        str = raw_input("Input Question : ")
-    else:
-        file_1 = open(args.test_file, 'r')
-        data = file_1.readlines()
+
 
     ''' ================================= BatchLoader loading ===============================================
     '''
@@ -101,6 +96,13 @@ if __name__ == '__main__':
     print ('Time elapsed in loading model =' , loading_time)
     print ('Finished loading')
 
+    str =''
+    if not args.use_file:
+        str = raw_input("Input Question : ")
+    else:
+        file_1 = open(args.test_file, 'r')
+        data = file_1.readlines()
+
     ''' ==================================== Parameters Initialising ===========================================
     '''
     n_best = args.beam_top 
@@ -120,7 +122,7 @@ if __name__ == '__main__':
     valid_step = rvae.validater(batch_loader)
     dropout = 1 # % of decoder_input in the decoder
     batch_size = 1
-    for i in range(5): #len(data)
+    for i in range(10): #len(data)
         if args.use_file:
             print (data[i])
         else:
@@ -132,16 +134,18 @@ if __name__ == '__main__':
                 seed = seed.cuda()
 
             if args.pureGenerator:
-                results, scores = rvae.sampler(batch_loader,batch_loader_2, 50, seed, args.use_cuda,i,beam_size,n_best)
+                results, scores = rvae.sampler(batch_loader, 10, seed, args.use_cuda,i,beam_size,n_best)
                 for tt in results:
+                    #print("inside1")
                     for k in range(n_best):
                         sen = " ". join([batch_loader_2.decode_word(x[k]) for x in tt])
-                    if batch_loader.end_token in sen:    
-                        print (sen[:sen.index(batch_loader.end_token)])
-                    else :
-                        print (sen    )  
+                        print("inside 2 ", sen)
+                    #if batch_loader.end_token in sen:    
+                        #print("inside3")
+                        #print (sen[:sen.index(batch_loader.end_token)])
+                    print(iteration, sen )  
             else:
                 cross_entropy, kld, logitsSoft, loss, results = valid_step(iteration, batch_size, args.use_cuda, dropout)#,batch_loader_2, 50, seed, args.use_cuda,i,beam_size,n_best
 
-            print (iteration,results)
+            #print (iteration,sen)
         print ('\n')

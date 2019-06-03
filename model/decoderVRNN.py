@@ -120,7 +120,7 @@ class VRNN(nn.Module):
         :param drop_prob: probability of an element of decoder input to be zeroed in sense of dropout
         :param initial_state: initial state of decoder rnn
 		'''
-
+		#print(len(initial_state))
 		all_enc_mean, all_enc_std = [], []
 		all_dec_mean, all_dec_std = [], []
 		outputs = []
@@ -128,6 +128,7 @@ class VRNN(nn.Module):
 		nll_loss = 0
 		x = F.dropout(x, drop_prob)
 		x = x.transpose(0, 1) #[seq_len, batch_size, vector_dim]
+		#print( "tipo init ",type(initial_state[0]))
 		
 		''' RVAE decoder
 		z = t.cat([z] * seq_len, 1).view(batch_size, seq_len, self.params.latent_variable_size)
@@ -139,8 +140,8 @@ class VRNN(nn.Module):
         result = self.fc(rnn_out)
         result = result.view(batch_size, seq_len, self.params.word_vocab_size)
         '''
-
-		h = Variable(torch.zeros(self.n_layers, x.size(1), self.h_dim))
+        #*2 because of bidirectional component
+		h = initial_state.view(self.n_layers, x.size(1), self.h_dim)# Variable(torch.zeros(self.n_layers, x.size(1), self.h_dim))
 		if self.use_cuda:
 			h = h.cuda() 
 		for t in range(x.size(0)):

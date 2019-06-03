@@ -17,8 +17,8 @@ class Encoder(nn.Module):
         self.rnn = nn.LSTM(input_size=self.params.word_embed_size + self.params.sum_depth,
                            hidden_size=self.params.encoder_rnn_size,
                            num_layers=self.params.encoder_num_layers,
-                           batch_first=True,
-                           bidirectional=True)
+                           batch_first=True)#,
+                           #bidirectional=True)
 
     def forward(self, input, State):
         """
@@ -48,9 +48,13 @@ class Encoder(nn.Module):
         _, (transfer_state_1, final_state) = self.rnn(input, State)
         transfer_state_2 = final_state
         
-        final_state = final_state.view(self.params.encoder_num_layers, 2, batch_size, self.params.encoder_rnn_size)
+        final_state = final_state.view(self.params.encoder_num_layers,  batch_size, self.params.encoder_rnn_size)#2,bath_size because of bidirectional
         final_state = final_state[-1]
-        h_1, h_2 = final_state[0], final_state[1]
-        final_state = t.cat([h_1, h_2], 1)
+        # for 2 layers
+        #h_1, h_2 = final_state[0], final_state[1]
+        #final_state = t.cat([h_1, h_2], 0)
+        # FOR 1 LAYER
+        h_1 = final_state[0]
+        final_state = h_1# t.cat([h_1, h_2], 0)
 
         return final_state, transfer_state_1, transfer_state_2

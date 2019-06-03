@@ -278,7 +278,7 @@ class BatchLoader:
             encoder_character_input[i] = [self.encode_characters(self.pad_token)] * to_add + line[::-1]
 
         if (includeLengths == True):
-            return np.array(encoder_word_input), np.array(decoder_word_input), input_seq_len
+            return np.array(encoder_word_input), np.array(decoder_word_input), np.array(input_seq_len)
         else:
             return np.array(encoder_word_input), np.array(encoder_character_input), \
                    np.array(decoder_word_input), np.array(decoder_character_input), np.array(decoder_output) #target

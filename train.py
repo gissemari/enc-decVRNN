@@ -115,9 +115,9 @@ if __name__ == "__main__":
             kld_result += [kld]
 
             seed = np.random.normal(size=[1, parameters.latent_variable_size])
-            sample = rvae.sample(batch_loader, 50, seed, args.use_cuda)
-            print('------------SAMPLE------------')
-            print(sample)
+            #sample = rvae.sample(batch_loader, 50, seed, args.use_cuda)
+            #print('------------SAMPLE------------')
+            #print(sample)
 
     t.save(rvae.state_dict(), 'trained_RVAE')
 
