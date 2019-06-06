@@ -66,6 +66,7 @@ if __name__ == "__main__":
     ce_result = []
     kld_result = []
     nll_local_result = []
+    iterationsList = []
 
     scheduler = MultiStepLR(optimizer, milestones=[100], gamma=0.1)
     for iteration in range(args.num_iterations):
@@ -117,9 +118,10 @@ if __name__ == "__main__":
 
             print('Validation-it: {}, loss-val: {:.4f}, cross_entropy: {:.4f}, KL: {:.4f}, coef {:8f}'.format(iteration, lossVal, cross_entropyVal/args.batch_size, kldVal/args.batch_size,coef))
         '''
-        if iteration % (args.num_iterations/10) == 0:
-            ce_result += [cross_entropy]
-            kld_result += [kld]
+        if iteration % (args.num_iterations/100) == 0:
+            iterationsList += [iteration]
+            ce_result += [round(cross_entropy.data.item(),2)]
+            kld_result += [round(kld.data.item(),4)]
             nll_local_result +=[nll_local]
             seed = np.random.normal(size=[1, parameters.latent_variable_size])
             #sample = rvae.sample(batch_loader, 50, seed, args.use_cuda)
@@ -130,4 +132,4 @@ if __name__ == "__main__":
 
     np.save('output/ce_result_{}.npy'.format(args.ce_result), np.array(ce_result))
     np.save('output/kld_result_npy_{}'.format(args.kld_result), np.array(kld_result))
-    writeColumns('output/log.csv',zip(ce_result,kld_result))
+    writeColumns('output/log.csv',zip(iterationsList,ce_result,kld_result))
